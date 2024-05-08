@@ -1,3 +1,12 @@
+import sqlite3
+from urllib import parse
+from urllib.request import Request, urlopen as uReq
+from bs4 import BeautifulSoup
+from datetime import datetime
+from config import config
+from utils import check_url
+import constants
+
 class Existance:
     @staticmethod
     def exists(table: str, arguments: dict, cursor) -> bool:
@@ -47,7 +56,7 @@ class Repository:
         if strict:
             #url = host
             try:
-                self.read_cursor.execute("SELECT * FROM websites WHERE url like ?", (url,))
+                self.read_cursor.execute("SELECT w.* FROM " + WEBSITES + " WHERE w.url like ?", (url,))
             except Exception as e:
                 print(url)
             return self.read_cursor.fetchall()
@@ -55,11 +64,11 @@ class Repository:
             url = url.replace("www.", "")
             url = url.split("//")
             if len(url) > 1:
-                self.read_cursor.execute("SELECT * FROM websites WHERE url like ?", (url[0] + "%" + url[1] +"%",))
+                self.read_cursor.execute("SELECT w.* FROM " + WEBSITES + " WHERE w.url like ?", (url[0] + "%" + url[1] +"%",))
             else:
-                self.read_cursor.execute("SELECT * FROM websites WHERE url like ?", (url[0]+"%",))
+                self.read_cursor.execute("SELECT w.* FROM " + WEBSITES + " WHERE w.url like ?", (url[0]+"%",))
         else:
-            self.read_cursor.execute("SELECT * FROM websites WHERE url like ?", (url+"%",))
+            self.read_cursor.execute("SELECT w.* FROM " + WEBSITES + " WHERE w.url like ?", (url+"%",))
         return self.read_cursor.fetchall()
 
     """
@@ -79,7 +88,7 @@ class Repository:
     def save_metadata(self, visit_id: int, identifier: str, identifier_name: str, value_name: str, value: str) -> bool:
         query = "INSERT INTO metadata(visit_id,identifier,identifier_name,attribute, attribute_value,date) VALUES (?,?,?,?,?,?)"
         params = (visit_id, identifier, identifier_name, value, )
-        self.read_cursor.execute("SELECT * FROM metadata WHERE visit_id=? AND identifier=? AND identifier_name=? AND ((attribute_value=? AND attribute=?) OR (attribute_value IS NULL AND attribute IS NULL))", (visit_id, identifier, identifier_name, value, value_name))
+        self.read_cursor.execute("SELECT m.* FROM " + METADATA + " WHERE m.visit_id=? AND m.identifier=? AND m.identifier_name=? AND ((m.attribute_value=? AND m.attribute=?) OR (m.attribute_value IS NULL AND m.attribute IS NULL))", (visit_id, identifier, identifier_name, value, value_name))
         if len(self.read_cursor.fetchall()) != 0:
             return False
         params = (visit_id, identifier, identifier_name, value_name, value, str(datetime.now()))
@@ -88,7 +97,7 @@ class Repository:
         return True
 
     def get_media_by_link(self, media_link: str):
-        self.read_cursor.execute("SELECT * FROM media WHERE media_link=?", (media_link,))
+        self.read_cursor.execute("SELECT me.* FROM " + MEDIA + " WHERE me.media_link=?", (media_link,))
         return self.read_cursor.fetchall()
 
     def save_media(self, media_link: str, alt_text: str, is_cached: False) -> bool:
@@ -96,7 +105,7 @@ class Repository:
         if "cache" in media_link:
             is_cached = True
         if is_cached:
-            self.read_cursor.execute("SELECT * FROM media WHERE visit_id=?", (self.visit_id,))
+            self.read_cursor.execute("SELECT me.* FROM " + MEDIA + " WHERE me.visit_id=?", (self.visit_id,))
             all_media = self.read_cursor.fetchall()
             fileName = media_link.split("/")[-1]
             for media in all_media:
@@ -227,7 +236,7 @@ class Repository:
                 destination = check_url(destination)
 
             params = (self.visit_id, destination_id, text, destination)
-            exists = self.read_cursor.execute("SELECT * FROM links WHERE visit_id=? AND destination=?", (self.visit_id, destination))
+            exists = self.read_cursor.execute("SELECT l.* FROM " + LINKS + " WHERE l.visit_id=? AND l.destination=?", (self.visit_id, destination))
             exists = exists.fetchall()
             if len(exists) > 0:
                 continue
@@ -241,7 +250,7 @@ class Repository:
         url = url.split("?")[1]
         query = "INSERT INTO queries(website_id,query) VALUES (?,?)"
         params = (self.website_id, url)
-        exists = self.read_cursor.execute("SELECT * FROM queries WHERE website_id=? AND query=?", (self.website_id, url))
+        exists = self.read_cursor.execute("SELECT q.* FROM " + QUERIES + " WHERE q.website_id=? AND q.query=?", (self.website_id, url))
         exists = exists.fetchall()
         if len(exists) > 0:
             return False
@@ -249,15 +258,15 @@ class Repository:
         self.write_connection.commit()
         return True
 
-    def load_site(self, url: str) -> int:
+    def load_site(self, url: str):
         req=Request(url,headers={'User-Agent': config["user_agent"]})
         response = uReq(req)
         charset = response.headers.get_content_charset() or 'utf-8'
         result = str(response.read().decode(charset))
         self.soup = BeautifulSoup(result, 'html.parser')
 
-    def save_visit(self, url: str, originalUrl: str = "") -> int:
-        query = "SELECT * FROM visits WHERE url=?"
+    def save_visit(self, url: str, originalUrl: str = ""):
+        query = "SELECT v.* FROM " + VISITS + " WHERE v.url=?"
         if originalUrl == "":
             originalUrl = url
         self.read_cursor.execute(query, (originalUrl,))
@@ -274,7 +283,7 @@ class Repository:
             id = visits[0][0]
         self.visit_id = id
 
-    def save_site(self, url: str, originalUrl: str = "") -> int:
+    def save_site(self, url: str, originalUrl: str = ""):
         self.stat_data = {
             "website": "",
             "known_from_before": False,
