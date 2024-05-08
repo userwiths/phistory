@@ -1,0 +1,72 @@
+<html>
+    <head>
+        <title>Home</title>
+        <script src="https://requirejs.org/docs/release/2.3.6/minified/require.js"></script>
+    </head>
+    <body>
+        <aside>
+            <nav>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="websites.html">Websites</a></li>
+                    <li><a href="media.html">Media</a></li>
+                    <li><a href="links.html">Links & Queries</a></li>
+                    <li><a href="scan.html">Scan Website</a></li>
+                </ul>
+            </nav>
+        </aside>
+        <header>
+            <h1>Web Scraper</h1>
+        </header>
+        <main>
+            <h2>Table of Websites</h2>
+            <div id="component-wrapper">
+                <website-table></website-table>
+            </div>
+
+            <h2>Dashboard</h2>
+            <div>
+
+            </div>
+        </main>
+        <footer>
+            <p>Web Scraper</p>
+        </footer>
+    </body>
+    <script>
+        requirejs.config({
+            paths: {
+                text: 'https://cdnjs.cloudflare.com/ajax/libs/require-text/2.0.12/text.min',
+                jquery: 'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min',
+                knockout: 'https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.0/knockout-min'
+            }
+        });
+        requirejs(["knockout", "jquery"], function(ko, $) {
+            ko.components.register(
+                "website-table",
+                {
+                    viewModel : {require: "components/website-table"},
+                    template: {require: "text!components/website-table.html"}
+                }
+            );
+            
+            ko.applyBindings();
+        });
+    </script>
+    <style>
+        .active, tr.actually_visited {
+            background-color: green;
+        }
+        .modal {
+            position: fixed;
+            z-index: 1;
+            left: 40%;
+            top: 40%;
+            width: 50%;
+            height: 50%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+        }
+    </style>
+</html>
