@@ -7,12 +7,14 @@ class User(BaseModel):
 
 class Media(BaseModel):
     website_id: int
+    visit_id: int
     media_link: Optional[str]
     alt_text: Optional[str]
     is_cached: bool
 
 class Metadata(BaseModel):
     website_id: int
+    visit_id: int
     attribute_name: str|None
     attribute_id: int|None
     identifier: str|None
@@ -22,24 +24,29 @@ class Metadata(BaseModel):
 
 class Comment(BaseModel):
     website_id: int
+    visit_id: int
     comment: str
     date: str
 
 class Tag(BaseModel):
     website_id: int
+    visit_id: int
     tag: str
 
 class Link(BaseModel):
     website_id: int
+    visit_id: int
     destination_id: Optional[int]
     link: Optional[str]
     destination: str
 
 class Query(BaseModel):
     website_id: int
+    visit_id: int
     query: str
 
 class Website(BaseModel):
+    visit_id: int
     website_id: int
     url: str
     base_website: str|None

@@ -14,6 +14,7 @@ from datetime import datetime
 from config import config
 from repository import Existance
 from models import *
+from repository import Repository
 
 def setup_db(cursor, connection):
     cursor.execute("""
@@ -55,8 +56,16 @@ def setup_db(cursor, connection):
             FOREIGN KEY(group_id) REFERENCES groups(group_id)
         )""")
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS 
+        CREATE TABLE IF NOT EXISTS
         visits(
+            visit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT UNIQUE,
+            times_visited INTEGER DEFAULT 0,
+            last_visit DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS 
+        websites(
             website_id INTEGER PRIMARY KEY AUTOINCREMENT,
             url,
             base_website,
@@ -68,7 +77,7 @@ def setup_db(cursor, connection):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS 
         metadata(
-            website_id INTEGER,
+            visit_id INTEGER,
             attribute_name,
             attribute_id INTEGER,
             identifier,
@@ -76,7 +85,7 @@ def setup_db(cursor, connection):
             attribute,
             attribute_value,
             date,
-            FOREIGN KEY(website_id) REFERENCES visits(website_id)
+            FOREIGN KEY(visit_id) REFERENCES visits(visit_id)
             FOREIGN KEY(attribute_id) REFERENCES attributes(attribute_id)
         )""")
     cursor.execute("""
@@ -89,12 +98,12 @@ def setup_db(cursor, connection):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS
         media(
-            website_id INTEGER,
+            visit_id INTEGER,
             media_link TEXT,
             alt_text TEXT,
             is_cached BOOLEAN DEFAULT FALSE,
             date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(website_id) REFERENCES visits(website_id)
+            FOREIGN KEY(visit_id) REFERENCES visits(visit_id)
         )""")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS
@@ -103,17 +112,17 @@ def setup_db(cursor, connection):
             uses_google_tag_manager BOOLEAN DEFAULT FALSE,
             uses_facebook_pixel BOOLEAN DEFAULT FALSE,
             uses_google_analytics BOOLEAN DEFAULT FALSE,
-            FOREIGN KEY(website_id) REFERENCES visits(website_id)
+            FOREIGN KEY(website_id) REFERENCES websites(website_id)
         )""")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS
         links(
-            website_id INTEGER,
+            visit_id INTEGER,
             destination_id INTEGER,
             link TEXT,
             destination TEXT,
             date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(website_id) REFERENCES visits(website_id)
+            FOREIGN KEY(visit_id) REFERENCES visits(visit_id)
         )""")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS
@@ -128,7 +137,7 @@ def setup_db(cursor, connection):
             query_id INTEGER,
             tag TEXT,
             date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(website_id) REFERENCES visits(website_id)
+            FOREIGN KEY(website_id) REFERENCES websites(website_id)
         )""")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS
@@ -137,7 +146,7 @@ def setup_db(cursor, connection):
             query_id INTEGER,
             comment TEXT,
             date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(website_id) REFERENCES visits(website_id)
+            FOREIGN KEY(website_id) REFERENCES websites(website_id)
         )""")
     
     connection.commit()
@@ -298,7 +307,7 @@ class Manager:
         return self.get_user(1)
 
     def get_visit(self, visit_id: int):
-        query = f"SELECT * FROM visits WHERE website_id = {visit_id}"
+        query = f"SELECT * FROM websites WHERE website_id = {visit_id}"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchone()
 
@@ -350,14 +359,16 @@ class Manager:
         return result
     
     def post_visit(self, url: str):
-        result = self.repository.save_site(url)
+        self.repository.save_site(url)
+        result = self.repository.website_id
         if result > 0:
             return {
                 "success": "Site saved",
                 "cached_media": self.repository.stat_data["cached_media"],
                 "website": self.repository.stat_data["website"],
                 "known_from_before": self.repository.stat_data["known_from_before"],
-                "id": result
+                "website_id": result,
+                "visit_id": self.repository.visit_id
             }
         return {"error": "Site not saved"}
 
@@ -387,27 +398,32 @@ class Manager:
         return {"success": message, "comment_id": comment_id, "tag_id": tag_id}
 
     def get_queries(self, page: int = 0, limit: int = 10, sort: str = "query", dir: str = "asc", website_id:int = 0):
-        query = f"SELECT q.*, v.url as website_url, v.base_website as base_website FROM queries as q JOIN visits as v ON v.website_id = q.website_id ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT q.*, v.url as website_url, v.base_website as base_website FROM queries as q JOIN websites as v ON v.website_id = q.website_id ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         if website_id > 0:
-            query = f"SELECT q.*, v.url AS website_url, v.base_website AS base_website FROM queries AS q JOIN visits AS v ON v.website_id = q.website_id WHERE q.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+            query = f"SELECT q.*, v.url AS website_url, v.base_website AS base_website FROM queries AS q JOIN websites AS v ON v.website_id = q.website_id WHERE q.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         return self.repository.read_cursor.fetchall()
 
     def get_metadata(self, page: int = 0, limit: int = 10, sort: str = "identifier", dir: str = "asc", website_id: int = 0):
-        query = f"SELECT m.*, attr.description, attr.source_link, v.url, v.base_website FROM metadata as m LEFT JOIN attributes AS attr ON attr.attribute_id = m.attribute_id JOIN visits AS v ON v.website_id = m.website_id ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT m.*, attr.description, attr.source_link, v.url, v.base_website FROM metadata as m LEFT JOIN attributes AS attr ON attr.attribute_id = m.attribute_id JOIN websites AS v ON v.website_id = m.website_id ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         if website_id > 0:
-            query = f"SELECT m.*, attr.description, attr.source_link, v.url, v.base_website FROM metadata as m LEFT JOIN attributes AS attr ON attr.attribute_id = m.attribute_id JOIN visits AS v ON v.website_id = m.website_id WHERE m.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+            query = f"SELECT m.*, attr.description, attr.source_link, v.url, v.base_website FROM metadata as m LEFT JOIN attributes AS attr ON attr.attribute_id = m.attribute_id JOIN websites AS v ON v.website_id = m.website_id WHERE m.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         return self.repository.read_cursor.fetchall()
 
-    def get_visits(self, page: int = 0, limit: int = 10, sort: str = "url", dir: str = "asc", only_visited: bool = False):
-        query = f"SELECT v.*,GROUP_CONCAT(t.tag) AS tags FROM visits AS v LEFT JOIN tags AS t ON t.website_id = v.website_id GROUP BY  v.url ORDER BY v.{sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+    def get_visits(self, page: int = 0, limit: int = 10, sort: str = "url", dir: str = "asc"):
+        query = f"SELECT * FROM visists AS v ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        self.repository.read_cursor.execute(query)
+        return self.repository.read_cursor.fetchall()
+
+    def get_websites(self, page: int = 0, limit: int = 10, sort: str = "url", dir: str = "asc", only_visited: bool = False):
+        query = f"SELECT v.*,GROUP_CONCAT(t.tag) AS tags FROM websites AS v LEFT JOIN tags AS t ON t.website_id = v.website_id GROUP BY  v.url ORDER BY v.{sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         if only_visited:
-            query = f"SELECT v.*,GROUP_CONCAT(t.tag) AS tags FROM visits AS v LEFT JOIN tags AS t ON t.website_id = v.website_id WHERE v.actually_visited = 1 GROUP BY v.url ORDER BY v.{sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+            query = f"SELECT v.*,GROUP_CONCAT(t.tag) AS tags FROM websites AS v LEFT JOIN tags AS t ON t.website_id = v.website_id WHERE v.actually_visited = 1 GROUP BY v.url ORDER BY v.{sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         paging = Paging(page=page, limit=limit, sort=sort, dir=dir)
-        query = "SELECT COUNT(*) FROM visits"
+        query = "SELECT COUNT(*) FROM websites"
         self.repository.read_cursor.execute(query)
         total = self.repository.read_cursor.fetchone()[0]
         paging.total = total
@@ -429,9 +445,9 @@ class Manager:
         return self.repository.read_cursor.fetchall()
 
     def get_comments(self, page: int = 0, limit: int = 10, sort: str = "comment", dir: str = "asc", website_id :int = 0):
-        query = f"SELECT c.*, v.url, v.base_website FROM comments as c JOIN visits AS v ON v.website_id = c.website_id ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT c.*, v.url, v.base_website FROM comments as c JOIN websites AS v ON v.website_id = c.website_id ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         if website_id > 0:
-            query = f"SELECT c.*, v.url, v.base_website FROM comments AS c JOIN visits AS v ON v.website_id = c.website_id WHERE c.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+            query = f"SELECT c.*, v.url, v.base_website FROM comments AS c JOIN websites AS v ON v.website_id = c.website_id WHERE c.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         return self.repository.read_cursor.fetchall()
 
@@ -444,7 +460,7 @@ class Manager:
             "comments": [],
             "tags": []
         }
-        query = f"SELECT * FROM visits WHERE url like '%{query_str}%'"
+        query = f"SELECT * FROM websites WHERE url like '%{query_str}%'"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         if len(result) > 0:
@@ -488,370 +504,34 @@ class Manager:
             "monthly": {},
             "daily": {}
         }
-        query = "SELECT COUNT(*) FROM visits"
-        self.repository.read_cursor.execute(query)
-        result["lifetime"]["visits"] = self.repository.read_cursor.fetchone()[0]
+        result["lifetime"]["websites"] = self.get_count("websites")
+        result["lifetime"]["metadata"] = self.get_count("metadata")
+        result["lifetime"]["tags"] = self.get_count("tags")
+        result["lifetime"]["media"] = self.get_count("media")
+        result["lifetime"]["website_media_ratio"] = result["lifetime"]["media"] / result["lifetime"]["websites"]
+        result["lifetime"]["website_metadata_ratio"] = result["lifetime"]["metadata"] / result["lifetime"]["websites"]
 
-        query = "SELECT COUNT(*) FROM visits WHERE last_visit > datetime('now', '-1 month')"
-        self.repository.read_cursor.execute(query)
-        result["monthly"]["visits"] = self.repository.read_cursor.fetchone()[0]
-
-        query = "SELECT COUNT(*) FROM visits WHERE last_visit > datetime('now', '-1 day')"
-        self.repository.read_cursor.execute(query)
-        result["daily"]["visits"] = self.repository.read_cursor.fetchone()[0]
-
-        query = "SELECT COUNT(*) FROM metadata"
-        self.repository.read_cursor.execute(query)
-        result["lifetime"]["metadata"] = self.repository.read_cursor.fetchone()[0]
-        result["lifetime"]["website_metadata_ratio"] = result["lifetime"]["metadata"] / result["lifetime"]["visits"]
-
-        query = "SELECT COUNT(*) FROM metadata WHERE date > datetime('now', '-1 month')"
-        self.repository.read_cursor.execute(query)
-        result["monthly"]["metadata"] = self.repository.read_cursor.fetchone()[0]
-        result["monthly"]["website_metadata_ratio"] = result["monthly"]["metadata"] / result["monthly"]["visits"]
-
-        query = "SELECT COUNT(*) FROM metadata WHERE date > datetime('now', '-1 day')"
-        self.repository.read_cursor.execute(query)
-        result["daily"]["metadata"] = self.repository.read_cursor.fetchone()[0]
-        result["daily"]["website_metadata_ratio"] = result["daily"]["metadata"] / result["daily"]["visits"]
-
-        query = "SELECT COUNT(*) FROM media"
-        self.repository.read_cursor.execute(query)
-        result["lifetime"]["media"] = self.repository.read_cursor.fetchone()[0]
-        result["lifetime"]["website_media_ratio"] = result["lifetime"]["media"] / result["lifetime"]["visits"]
-
-        query = "SELECT COUNT(*) FROM media WHERE date > datetime('now', '-1 month')"
-        self.repository.read_cursor.execute(query)
-        result["monthly"]["media"] = self.repository.read_cursor.fetchone()[0]
-        result["monthly"]["website_media_ratio"] = result["monthly"]["media"] / result["monthly"]["visits"]
-
-        query = "SELECT COUNT(*) FROM media WHERE date > datetime('now', '-1 day')"
-        self.repository.read_cursor.execute(query)
-        result["daily"]["media"] = self.repository.read_cursor.fetchone()[0]
-        result["daily"]["website_media_ratio"] = result["daily"]["media"] / result["daily"]["visits"]
-
-        query = "SELECT COUNT(*) FROM tags"
-        self.repository.read_cursor.execute(query)
-        result["lifetime"]["tags"] = self.repository.read_cursor.fetchone()[0]
-
-        query = "SELECT COUNT(*) FROM tags WHERE date > datetime('now', '-1 month')"
-        self.repository.read_cursor.execute(query)
-        result["monthly"]["tags"] = self.repository.read_cursor.fetchone()[0]
-
-        query = "SELECT COUNT(*) FROM tags WHERE date > datetime('now', '-1 day')"
-        self.repository.read_cursor.execute(query)
-        result["daily"]["tags"] = self.repository.read_cursor.fetchone()[0]
+        result["monthly"]["website_metadata_ratio"] = result["monthly"]["metadata"] / result["monthly"]["websites"]
+        result["monthly"]["websites"] = self.get_count("websites", "WHERE date > datetime('now', '-1 month')")
+        result["monthly"]["media"] = self.get_count("media", "WHERE date > datetime('now', '-1 month')")
+        result["monthly"]["website_media_ratio"] = result["monthly"]["media"] / result["monthly"]["websites"]
+        result["monthly"]["metadata"] = self.get_count("metadata", "WHERE date > datetime('now', '-1 month')")
+        result["monthly"]["tags"] = self.get_count("tags", "WHERE date > datetime('now', '-1 month')")
+    
+        result["daily"]["websites"] = self.get_count("websites", "WHERE date > datetime('now', '-1 day')")
+        result["daily"]["metadata"] = self.get_count("metadata", "WHERE date > datetime('now', '-1 day')")
+        result["daily"]["website_metadata_ratio"] = result["daily"]["metadata"] / result["daily"]["websites"]
+        result["daily"]["media"] = self.get_count("media", "WHERE date > datetime('now', '-1 day')")
+        result["daily"]["website_media_ratio"] = result["daily"]["media"] / result["daily"]["websites"]
+        result["daily"]["tags"] = self.get_count("tags", "WHERE date > datetime('now', '-1 day')")
 
         return result
 
-class Repository:
-    def __init__(self, write_db, read_db):
-        self.write_connection = sqlite3.connect(write_db)
-        self.write_cursor = self.write_connection.cursor()
-        self.read_connection = sqlite3.connect(read_db)
-        self.read_cursor = self.read_connection.cursor()
-        self.stat_data = {
-            "website": "",
-            "known_from_before": False,
-            "cached_media": 0
-        }
-        self.soup = BeautifulSoup()
+    def get_count(self, table:str = "", where:str = ""):
+        query = f"SELECT COUNT(*) FROM {table} {where}"
+        self.repository.read_cursor.execute(query)
+        return self.repository.read_cursor.fetchone()[0]
 
-    """
-    Commits and closes connection to database on class destroy.
-    """
-    def __del__(self):
-        self.write_connection.commit()
-        self.write_connection.close()
-        self.read_connection.close()
-
-    """
-    Gets all websites.
-    :param is_main: True if main website, False if subpage, None if all.
-    :type is_main: bool|None
-    :return: List of websites.
-    """
-    def get_all_sites(self, is_main: bool|None = None):
-        query = "SELECT * FROM visits"
-        if is_main is False:
-            query = "SELECT * FROM visits WHERE base_website IS NOT NULL"
-        elif is_main is True:
-            query = "SELECT * FROM visits WHERE base_website IS NULL"
-        self.read_cursor.execute(query)
-        return self.read_cursor.fetchall()
-
-    """
-    Get the site by a given URL.
-    :param url: URL of the website.
-    :type url: str
-    :param strict: True if strict URL matching, False if partial URL matching.
-    :type strict: bool
-    :return: List of websites.
-    """
-    def get_site_by_url(self, url: str, strict: bool = False):
-        host = parse.urlparse(url).hostname
-        url = check_url(url, host)
-        if url == False:
-            return []
-        if not strict:
-            url = parse.urlparse(url).hostname
-            try:
-                self.read_cursor.execute("SELECT * FROM visits WHERE url like ?", (url,))
-            except Exception as e:
-                print(url)
-            return self.read_cursor.fetchall()
-        if "www" in url or "//" in url:
-            url = url.replace("www.", "")
-            url = url.split("//")
-            if len(url) > 1:
-                self.read_cursor.execute("SELECT * FROM visits WHERE url like ?", (url[0] + "%" + url[1] +"%",))
-            else:
-                self.read_cursor.execute("SELECT * FROM visits WHERE url like ?", (url[0]+"%",))
-        else:
-            self.read_cursor.execute("SELECT * FROM visits WHERE url like ?", (url+"%",))
-
-        result = self.read_cursor.fetchall()
-        return result
-
-    """
-    Get site's metadata records
-    :param website_id: ID of the website.
-    :type website_id: int
-    """
-    def get_site_metadata(self, website_id:int):
-        self.read_cursor.execute("SELECT * FROM metadata WHERE website_id=?", (website_id,))
-        return self.read_cursor.fetchall()
-
-    """
-    In case we have data about a standart used metadata attribute, fetch it.
-    :param attribute_id: ID of the attribute.
-    :type attribute_id: int
-    """
-    def get_metadata_description(self, attribute_id:int):
-        self.read_cursor.execute("SELECT * FROM attributes WHERE attribute_id=?", (attribute_id,))
-        return self.read_cursor.fetchall()
-
-    def get_site_by_id(self, id: int):
-        self.read_cursor.execute("SELECT * FROM visits WHERE website_id=?", (id,))
-        return self.read_cursor.fetchall()
-
-    """
-    Check if metadata already exists, if not, save it.
-    :param website_id: ID of the website.
-    :type website_id: int
-    :param identifier: Identifier of the metadata.
-    :type identifier: str
-    :param identifier_name: Name of the identifier.
-    :type identifier_name: str
-    :param value_name: Name of the value.
-    :type value_name: str
-    :param value: Value of the metadata.
-    :type value: str
-    :return: True if metadata was saved, False if metadata already exists.
-    """
-    def save_metadata(self, website_id: int, identifier: str, identifier_name: str, value_name: str, value: str) -> bool:
-        query = "INSERT INTO metadata(website_id,identifier,identifier_name,attribute, attribute_value,date) VALUES (?,?,?,?,?,?)"
-        params = (website_id, identifier, identifier_name, value, )
-        self.read_cursor.execute("SELECT * FROM metadata WHERE website_id=? AND identifier=? AND identifier_name=? AND ((attribute_value=? AND attribute=?) OR (attribute_value IS NULL AND attribute IS NULL))", (website_id, identifier, identifier_name, value, value_name))
-        if len(self.read_cursor.fetchall()) != 0:
-            return False
-        params = (website_id, identifier, identifier_name, value_name, value, str(datetime.now()))
-        self.write_cursor.execute(query, params)
-        self.write_connection.commit()
-        return True
-    
-    def get_website_media(self, website_id: int):
-        self.read_cursor.execute("SELECT * FROM media WHERE website_id=?", (website_id,))
-        return self.read_cursor.fetchall()
-
-    def get_media_by_link(self, media_link: str):
-        self.read_cursor.execute("SELECT * FROM media WHERE media_link=?", (media_link,))
-        return self.read_cursor.fetchall()
-
-    def save_media(self, website_id: int, media_link: str, alt_text: str, is_cached: False) -> bool:
-        query = "INSERT INTO media(website_id,media_link,alt_text,is_cached) VALUES (?,?,?,?)"
-        if "cache" in media_link:
-            is_cached = True
-        if is_cached:
-            all_media = self.get_website_media(website_id)
-            fileName = media_link.split("/")[-1]
-            for media in all_media:
-                if fileName in media[1]:
-                    self.stat_data["cached_media"] += 1
-                    return False
-        params = (website_id, media_link, alt_text, is_cached)
-        exists = self.get_media_by_link(media_link)
-        if len(exists) > 0 and exists[0][0] == website_id:
-            return False 
-        self.write_cursor.execute(query, params)
-        self.write_connection.commit()
-        return True
-
-    def import_media(self, id: int):
-        media = self.soup.select('img,picture,video,audio,object,embed,source,track')
-        for tag in media:
-            if tag is None:
-                continue
-            entries = tag.attrs
-            keys = list(entries.keys())
-            alt_text = tag.get("alt")
-
-            if "src" in keys:
-                source = entries["src"]
-            elif "href" in keys:
-                source = entries["href"]
-            elif "data" in keys:
-                source = entries["data"]
-            else:
-                print("Unknown media type: "+str(tag))
-                continue
-            self.save_media(id, source, alt_text, False)
-
-    def upsert_website(self, url: str, site: str = "", actially_visited:bool = False) -> int:
-        if url is None or len(url) < 1:
-            return None
-        originalUrl = url
-        local = self.get_site_by_url(url, True)
-        if len(local) > 0:
-            id = local[0][0]
-            self.stat_data["website"] = local[0][1]
-            self.stat_data["known_from_before"] = True
-        else:
-            url = check_url(url, site)
-            if url == False:
-                print (originalUrl, url)
-            parted_url = parse.urlparse(url)
-            if parted_url.hostname is None:
-                print("Invalid URL: "+url)
-                return 0
-            base_website = parted_url.scheme + "://" + parted_url.hostname
-            if base_website == url:
-                base_website = None
-            params=(url,base_website, actially_visited)
-            query="INSERT INTO visits(url,base_website,actually_visited) VALUES (?,?,?)"
-            self.write_cursor.execute(query, params)
-            self.write_connection.commit()
-            id = self.write_cursor.lastrowid
-        self.save_queries(originalUrl, self.stat_data["website"])
-        return id
-    
-    def import_metatags(self, id: int):
-        metatags = self.soup.find_all('meta')
-        title = self.soup.find('title')
-        if title is not None:
-            self.save_metadata(id, "title", title.string, None, None)
-        for tag in metatags:
-            entries = tag.attrs
-            keys = list(entries.keys())
-            if(len(keys) == 2):
-                self.save_metadata(id, keys[0], entries[keys[0]], keys[1], entries[keys[1]])
-            elif(len(keys) == 1):
-                self.save_metadata(id, keys[0], entries[keys[0]], None, None)
-
-    def import_tracking(self, id: int):
-        uses_google_tag_manager = False
-        uses_facebook_pixel = False
-        uses_google_analytics = False
-        all_scripts = self.soup.find_all('script')
-        if all_scripts is None:
-            return
-        if len(all_scripts) == 0:
-            return
-        for script in self.soup.find_all('script'):
-            if "googletagmanager" in script.string:
-                uses_google_tag_manager = True
-            if "facebook" in script.string:
-                uses_facebook_pixel = True
-            if "google-analytics" in script.string:
-                uses_google_analytics = True
-            query = "INSERT INTO tracking(website_id,uses_google_tag_manager,uses_facebook_pixel,uses_google_analytics) VALUES (?,?,?,?)"
-            params = (id, uses_google_tag_manager, uses_facebook_pixel, uses_google_analytics)
-            self.write_cursor.execute(query, params)
-
-    def import_links(self, id: int):
-        links = self.soup.find_all('a')
-        site = self.get_site_by_id(id)
-        site = site[0][1]
-
-        for link in links:
-            text = link.string
-            destination = link.get("href")
-            if destination is None:
-                destination = link.get("data-href")
-            if destination is None:
-                destination = link.get("data-link")
-            if destination is None:
-                destination = link.get("data-src")
-            if destination is None:
-                destination = link.get("data-url")
-            if destination is None:
-                continue
-            try:
-                destination_id = self.get_site_by_url(destination)
-                if len(destination_id) == 0:
-                    destination_id = self.upsert_website(destination, site)
-                else:
-                    destination_id = destination_id[0][0]
-            except Exception as e:
-                destination_id = None
-            if "?" in destination:
-                self.save_queries(destination, site)
-                destination = check_url(destination)
-
-            params = (id, destination_id, text, destination)
-            exists = self.read_cursor.execute("SELECT * FROM links WHERE website_id=? AND destination=?", (id, destination))
-            exists = exists.fetchall()
-            if len(exists) > 0:
-                continue
-            query = "INSERT INTO links(website_id,destination_id,link,destination) VALUES (?,?,?,?)"
-            self.write_cursor.execute(query, params)
-            self.write_connection.commit()
-
-    def save_queries(self, url: str, site: str = "") -> bool:
-        if "?" not in url:
-            return False
-        websiteUrl = check_url(url, site)
-        if websiteUrl == False:
-            return False
-        websiteObject = self.get_site_by_url(websiteUrl, False)
-        id = None
-        if len(websiteObject) == 0:
-            id = self.upsert_website(websiteUrl)
-            websiteObject = self.get_site_by_id(id)
-        if "?" in websiteUrl:
-            websiteUrl = url.split("?")[0]
-        url = url.split("?")[1]
-        query = "INSERT INTO queries(website_id,query) VALUES (?,?)"
-        params = (id, url)
-        exists = self.read_cursor.execute("SELECT * FROM queries WHERE website_id=? AND query=?", (id, url))
-        exists = exists.fetchall()
-        if len(exists) > 0:
-            return False
-        self.write_cursor.execute(query, params)
-        self.write_connection.commit()
-        return True
-
-    def save_site(self, url: str) -> int:
-        self.stat_data = {
-            "website": "",
-            "known_from_before": False,
-            "cached_media": 0
-        }
-
-        id = self.upsert_website(url, "", True)
-        if id == 0 or id is None:
-            return 0
-        req=Request(url,headers={'User-Agent': config["user_agent"]})
-        response = uReq(req)
-        result = str(response.read().decode(response.headers.get_content_charset()))
-        self.soup = BeautifulSoup(result, 'html.parser')
-
-        self.import_media(id)
-        self.import_metatags(id)
-        self.import_links(id)
-        return id
-        #self.import_tracking(self.soup, id)
-            
 
 if __name__ == "__main__":
     con = sqlite3.connect(config["write_database"])
@@ -865,13 +545,20 @@ if __name__ == "__main__":
 
     repository = Repository(config["write_database"], config["read_database"])
 
-    for url in arguments[1:]:
+    if "link" in arguments[1] :
+        urlsToCheck = arguments[2:]
+    elif "file" in arguments[1]:
+        with open(arguments[2], "r") as file:
+            urlsToCheck = file.readlines()
+            if "|" in urlsToCheck[0]:
+                urlsToCheck = [x.split("|")[0] for x in urlsToCheck]
+    for url in urlsToCheck:
+        originalUrl = url
         checkedUrl = check_url(url)
         if not checkedUrl:
             print("Invalid URL: "+url)
             continue
         url = checkedUrl
         print("Attempting to scan: "+url)
-
-        repository.save_site(url)
+        repository.save_site(url, originalUrl)
         print(repository.stat_data)
