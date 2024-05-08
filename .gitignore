@@ -1,0 +1,7 @@
+Lib
+Include
+Scripts
+__pycache__
+*.sqlite
+urls.txt
+pyvenv.cfg
