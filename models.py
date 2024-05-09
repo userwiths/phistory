@@ -6,14 +6,12 @@ class User(BaseModel):
     name: str
 
 class Media(BaseModel):
-    website_id: int
     visit_id: int
     media_link: Optional[str]
     alt_text: Optional[str]
     is_cached: bool
 
 class Metadata(BaseModel):
-    website_id: int
     visit_id: int
     attribute_name: str|None
     attribute_id: int|None
@@ -34,7 +32,6 @@ class Tag(BaseModel):
     tag: str
 
 class Link(BaseModel):
-    website_id: int
     visit_id: int
     destination_id: Optional[int]
     link: Optional[str]
@@ -46,13 +43,24 @@ class Query(BaseModel):
     query: str
 
 class Website(BaseModel):
-    visit_id: int
     website_id: int
     url: str
     base_website: str|None
     times_visited: int
     last_visit: str
     actually_visited: bool
+    metadata: Optional[list[Metadata]] = []
+    queries: Optional[list[Query]] = []
+    links: Optional[list[Link]] = []
+    media: Optional[list[Media]] = []
+    comments: Optional[list[Comment]] = []
+    tags: Optional[list[Tag]] = []
+
+class Visit(BaseModel):
+    visit_id: int
+    url: str
+    times_visited: int
+    last_visit: str
     metadata: Optional[list[Metadata]] = []
     queries: Optional[list[Query]] = []
     links: Optional[list[Link]] = []
@@ -86,3 +94,7 @@ class CommentPageResponse(BaseModel):
 class TagPageResponse(BaseModel):
     paging: Paging
     data: list[Tag]
+
+class VisitsPageResponse(BaseModel):
+    paging: Paging
+    data: list[Visit] = []

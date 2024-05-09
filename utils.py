@@ -1,6 +1,7 @@
 import urllib.parse
 
 import constants
+from config import config
 
 def setup_db(cursor, connection):
     cursor.execute("""

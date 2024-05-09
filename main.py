@@ -28,31 +28,43 @@ def read_root():
     dashboard = manager.construct_dashboard()
     return dashboard
 
-@app.get("/visits/actual", response_model=WebsitePageResponse)
-def read_visits(page:int = 0, limit:int = 10, sort:str = "url", dir:str = "asc"):
-    manager = Manager()
-    result = manager.get_visits(page, limit, sort, dir, True)
-    return result
-
-@app.get("/visits", response_model=WebsitePageResponse)
-def read_visits(page:int = 0, limit:int = 10, sort:str = "url", dir:str = "asc"):
+@app.get("/visits", response_model=VisitsPageResponse)
+def get_visits(page:int = 0, limit:int = 10, sort:str = "date", dir:str = "asc") -> VisitsPageResponse:
     manager = Manager()
     result = manager.get_visits(page, limit, sort, dir)
     return result
 
-@app.get("/visits/{visit_id}", response_model=Website)
+@app.get("/visits/{visit_id}", response_model=Visit)
+def get_visit(visit_id:int) -> Visit:
+    manager = Manager()
+    result = manager.get_visit(visit_id)
+    return result
+
+@app.get("/websites/actual", response_model=WebsitePageResponse)
+def read_websites(page:int = 0, limit:int = 10, sort:str = "url", dir:str = "asc"):
+    manager = Manager()
+    result = manager.get_websites(page, limit, sort, dir, True)
+    return result
+
+@app.get("/websites", response_model=WebsitePageResponse)
+def read_websites(page:int = 0, limit:int = 10, sort:str = "url", dir:str = "asc"):
+    manager = Manager()
+    result = manager.get_websites(page, limit, sort, dir)
+    return result
+
+@app.get("/websites/{visit_id}", response_model=Website)
 def read_visit(visit_id:int):
     manager = Manager()
     result = manager.get_visit(visit_id)
     return result
 
-@app.post("/visits", status_code=201)
+@app.post("/websites", status_code=201)
 def post_visit(url:str):
     manager = Manager()
     result = manager.post_visit(url)
     return result
 
-@app.put("/visits/{visit_id}")
+@app.put("/websites/{visit_id}")
 def put_visit(visit_id:int, comment:str = "", tag:str = ""):
     manager = Manager()
     result = manager.put_visit(visit_id, comment, tag)

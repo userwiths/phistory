@@ -1,0 +1,42 @@
+<h2>Table of Visits</h2>
+<table data-bind="attr: { id: component_id }">
+    <caption>
+        
+    </caption>
+    <thead>
+        <tr>
+            <th class="sortable searcheable url" data-bind="click: function() { selectedSort('url') }">Website URL</th>
+            <th class="sortable searcheable times_visited" data-bind="click: function() { selectedSort('times_visited') }">Times visited</th>
+            <th class="sortable searcheable last_visit" data-bind="click: function() { selectedSort('last_visit') }">Last Visit</th>
+            <!--<th class="sortable searcheable tags" data-bind="click: function() { selectedSort('tags') }">Tags</th>-->
+        </tr>
+    </thead>
+    <tbody data-bind="foreach: visits">
+        <tr>
+            <td data-bind="text: url"></td>
+            <td data-bind="text: times_visited"></td>
+            <td data-bind="text: last_visit"></td>
+            <!--<td data-bind="text: $parent.getTags($data)"></td>-->
+            <td data-bind="click: $parent.setId">Details</td>
+        </tr>
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="7">
+                <button data-bind="click: function() { page(0) }">First</button>
+                <button data-bind="click: function() { page(page() - 1) }">Previous</button>
+                <button disabled data-bind="text: page() + 1"></button>
+                <button data-bind="click: function() { page(page() + 1) }">Next</button>
+                <button data-bind="click: function() { page(pages() - 1) }, text: pages"></button>
+                Per-Page: <input type="number" data-bind="value: limit, valueUpdate: 'input'">
+            </td>
+        </tr>
+    </tfoot>
+</table>
+<div class="modal website-info" data-bind="visible: modal_visible">
+    <img width="250px" height="150px" data-bind="visible: image, attr: { src: image }" alt="Website image/logo">
+    <h3 class="title" data-bind="text: title"></h3>
+    <div class="description" data-bind="text: description">
+    </div>
+    <button data-bind="click: function() { modal_visible(false) }">Close</button>
+</div>

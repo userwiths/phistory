@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from config import config
 from utils import check_url
-import constants
+from constants import *
 
 class Existance:
     @staticmethod

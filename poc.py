@@ -15,21 +15,21 @@ from config import config
 from repository import Existance
 from models import *
 from repository import Repository
-import constants
-import utils
+from constants import *
+from utils import check_url, setup_db, fill_metadata_descriptions
 
 class Manager:
     def __init__(self):
         self.repository = Repository(config["write_database"], config["read_database"])
 
     def get_user(self, user_id: int):
-        query = "SELECT u.* FROM " + USERS + " WHERE u.user_id = ?"
+        query = "SELECT u.* FROM " + USERS + f" WHERE u.user_id = ?"
         self.repository.read_cursor.execute(query, (user_id,))
         result = self.repository.read_cursor.fetchone()
         return result
 
     def get_users(self, page: int = 0, limit: int = 10, sort: str = "name", dir: str = "asc"):
-        query = f"SELECT * FROM " + USERS + " ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT * FROM " + USERS + f" ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         return result
@@ -44,7 +44,7 @@ class Manager:
     def put_user(self, user_id: int, username: str, password: str, group_id: int):
         query = "UPDATE users SET username=?, password=? WHERE user_id=?"
         self.repository.write_cursor.execute(query, (username, password, user_id))
-        tied_to_group = self.repository.read_cursor.execute("SELECT * FROM " + USER_GROUPS + " WHERE user_id=? AND group_id=?", (user_id, group_id))
+        tied_to_group = self.repository.read_cursor.execute("SELECT * FROM " + USER_GROUPS + f" WHERE user_id=? AND group_id=?", (user_id, group_id))
         tied_to_group = tied_to_group.fetchall()
         if len(tied_to_group) == 0:
             query = "INSERT INTO user_groups(user_id, group_id) VALUES (?,?)"
@@ -65,13 +65,13 @@ class Manager:
         return {"success": "User group deleted"}
 
     def get_group(self, group_id: int):
-        query = "SELECT * FROM " + GROUPS + " WHERE group_id = ?"
+        query = "SELECT * FROM " + GROUPS + f" WHERE group_id = ?"
         self.repository.read_cursor.execute(query, (group_id,))
         result = self.repository.read_cursor.fetchone()
         return result
 
     def get_groups(self, page: int = 0, limit: int = 10, sort: str = "name", dir: str = "asc"):
-        query = f"SELECT * FROM " + GROUPS + " ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT * FROM " + GROUPS + f" ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         return result
@@ -86,7 +86,7 @@ class Manager:
     def get_current_user(self):
         return self.get_user(1)
 
-    def get_visit(self, visit_id: int):
+    def get_website(self, visit_id: int):
         query = f"SELECT * FROM websites WHERE website_id = {visit_id}"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchone()
@@ -94,49 +94,7 @@ class Manager:
         if result is None:
             return {"error": "Visit not found"}
         result = Website(website_id=result[0], url=result[1], base_website=result[2], times_visited=result[3], last_visit=result[4], actually_visited=result[5] == 1)
-
-        query = f"SELECT * FROM " + MEDIA + " WHERE website_id = {visit_id}"
-        self.repository.read_cursor.execute(query)
-        media = self.repository.read_cursor.fetchall()
-        for i in range(len(media)):
-            result.media.append(Media(website_id=media[i][0], media_link=media[i][1], alt_text=media[i][2], is_cached=media[i][3], date=media[i][4]))
-
-        links = []
-        query = f"SELECT * FROM " + LINKS + " WHERE website_id = {visit_id}"
-        self.repository.read_cursor.execute(query)
-        links = self.repository.read_cursor.fetchall()
-        for i in range(len(links)):
-            result.links.append(Link(website_id=links[i][0], destination_id=links[i][1], link=links[i][2], destination=links[i][3]))
-
-        metadata = {}
-        query = f"SELECT * FROM " + METADATA + " WHERE website_id = {visit_id}"
-        self.repository.read_cursor.execute(query)
-        metadata = self.repository.read_cursor.fetchall()
-        for i in range(len(metadata)):
-            result.metadata.append(Metadata(website_id=metadata[i][0], attribute_name=metadata[i][1], attribute_id=metadata[i][2], identifier=metadata[i][3], identifier_name=metadata[i][4], attribute=metadata[i][5], attribute_value=metadata[i][6], date=metadata[i][7]))
-
-        queries = []
-        query = f"SELECT * FROM " + QUERIES + " WHERE website_id = {visit_id}"
-        self.repository.read_cursor.execute(query)
-        queries = self.repository.read_cursor.fetchall()
-        for i in range(len(queries)):
-            result.queries.append(Query(website_id=queries[i][0], query=queries[i][1]))
-
-        tags = []
-        query = f"SELECT * FROM " + TAGS + " WHERE website_id = {visit_id}"
-        self.repository.read_cursor.execute(query)
-        tags = self.repository.read_cursor.fetchall()
-        for i in range(len(tags)):
-            result.tags.append(Tag(website_id=tags[i][0], query_id=tags[i][1], tag=tags[i][2], date=tags[i][3]))
-
-        comments = []
-        query = f"SELECT * FROM  " + COMMENTS + " WHERE website_id = {visit_id}"
-        self.repository.read_cursor.execute(query)
-        comments = self.repository.read_cursor.fetchall()
-        for i in range(len(comments)):
-            result.comments.append(Comment(website_id=comments[i][0], query_id=comments[i][1], comment=comments[i][2], date=comments[i][3]))
-
-        return result
+        pass
     
     def post_visit(self, url: str):
         self.repository.save_site(url)
@@ -157,14 +115,14 @@ class Manager:
         tag_id = 0
         if len(comment) > 0:
             query = f"INSERT INTO comments(website_id, query_id, comment) VALUES ({visit_id}, null, '{comment}')"
-            exists = self.repository.read_cursor.execute("SELECT * FROM " + COMMENTS + " WHERE website_id=? AND comment=?", (visit_id, comment))
+            exists = self.repository.read_cursor.execute("SELECT * FROM " + COMMENTS + f" WHERE website_id=? AND comment=?", (visit_id, comment))
             exists = exists.fetchall()
             if len(exists) == 0:
                 self.repository.write_cursor.execute(query)
                 comment_id = self.repository.write_cursor.lastrowid
         if len(tag) > 0:
             query = f"INSERT INTO tags(website_id, query_id, tag) VALUES ({visit_id}, null, '{tag}')"
-            exists = self.repository.read_cursor.execute("SELECT * FROM " + TAGS + " WHERE website_id=? AND tag=?", (visit_id, tag))
+            exists = self.repository.read_cursor.execute("SELECT * FROM " + TAGS + f" WHERE website_id=? AND tag=?", (visit_id, tag))
             exists = exists.fetchall()
             if len(exists) == 0:
                 self.repository.write_cursor.execute(query)
@@ -178,23 +136,83 @@ class Manager:
         return {"success": message, "comment_id": comment_id, "tag_id": tag_id}
 
     def get_queries(self, page: int = 0, limit: int = 10, sort: str = "query", dir: str = "asc", website_id:int = 0):
-        query = f"SELECT q.*, w.url as website_url, w.base_website as base_website FROM " + QUERIES + " JOIN " + WEBSITES + " ON " + WEBSITE_TO_QUERY + " ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT q.*, w.url as website_url, w.base_website as base_website FROM " + QUERIES + f" JOIN " + WEBSITES + f" ON " + WEBSITE_TO_QUERY + f" ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         if website_id > 0:
-            query = f"SELECT q.*, w.url AS website_url, w.base_website AS base_website FROM " + QUERIES + " JOIN " + WEBSITES + " ON + " + WEBSITE_TO_QUERY + " WHERE q.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+            query = f"SELECT q.*, w.url AS website_url, w.base_website AS base_website FROM " + QUERIES + f" JOIN " + WEBSITES + f" ON + f" + WEBSITE_TO_QUERY + f" WHERE q.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         return self.repository.read_cursor.fetchall()
 
     def get_metadata(self, page: int = 0, limit: int = 10, sort: str = "identifier", dir: str = "asc", visit_id: int = 0):
-        query = f"SELECT m.*, a.description, a.source_link, v.url FROM " + METADATA + " LEFT JOIN " + ATTRIBUTES + " ON " + ATTRIBUTE_TO_METADATA + " JOIN " + VISITS + " ON " + VISIT_TO_METADATA + " ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT m.*, a.description, a.source_link, v.url FROM " + METADATA + f" LEFT JOIN " + ATTRIBUTES + f" ON " + ATTRIBUTE_TO_METADATA + f" JOIN " + VISITS + f" ON " + VISIT_TO_METADATA + f" ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         if website_id > 0:
-            query = f"SELECT m.*, a.description, a.source_link, v.url FROM " + METADATA + " LEFT JOIN " + ATTRIBUTES + " ON " + ATTRIBUTE_TO_METADATA + " JOIN " + VISITS + " ON " + VISIT_TO_METADATA + " WHERE m.visit_id = {visit_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+            query = f"SELECT m.*, a.description, a.source_link, v.url FROM " + METADATA + f" LEFT JOIN " + ATTRIBUTES + f" ON " + ATTRIBUTE_TO_METADATA + f" JOIN " + VISITS + f" ON " + VISIT_TO_METADATA + f" WHERE m.visit_id = {visit_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         return self.repository.read_cursor.fetchall()
 
     def get_visits(self, page: int = 0, limit: int = 10, sort: str = "url", dir: str = "asc"):
-        query = f"SELECT * FROM " + VISITS + " AS v ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT * FROM " + VISITS + f" ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page*limit}"
         self.repository.read_cursor.execute(query)
-        return self.repository.read_cursor.fetchall()
+        visits = self.repository.read_cursor.fetchall()
+        total = self.repository.read_cursor.execute("SELECT COUNT(*) FROM " + VISITS).fetchone()[0]
+        paging = Paging(page=page, limit=limit, sort=sort, dir=dir, total=total)
+        result = []
+        for visit in visits:
+            result.append(self.get_visit(visit[0]))
+        result = VisitsPageResponse(paging=paging, data=result)
+        return result
+    
+    def get_visit(self, visit_id: int):
+        query = f"SELECT * FROM " + VISITS + f" WHERE visit_id = {visit_id}"
+        self.repository.read_cursor.execute(query)
+        visit = self.repository.read_cursor.fetchone()
+        if visit is None:
+            return {"error": "Visit not found"}
+        url = visit[1]
+        result = Visit(visit_id=visit[0], url=url, times_visited=visit[2], last_visit=visit[3])
+        
+        query = f"SELECT * FROM " + MEDIA + f" WHERE visit_id = {visit_id}"
+        self.repository.read_cursor.execute(query)
+        media = self.repository.read_cursor.fetchall()
+        for i in range(len(media)):
+            result.media.append(Media(visit_id=media[i][0], media_link=media[i][1], alt_text=media[i][2], is_cached=media[i][3], date=media[i][4]))
+
+        links = []
+        query = f"SELECT * FROM " + LINKS + f" WHERE visit_id = {visit_id}"
+        self.repository.read_cursor.execute(query)
+        links = self.repository.read_cursor.fetchall()
+        for i in range(len(links)):
+            result.links.append(Link(visit_id=links[i][0], destination_id=links[i][1], link=links[i][2], destination=links[i][3]))
+
+        metadata = {}
+        query = f"SELECT * FROM " + METADATA + f" WHERE visit_id = {visit_id}"
+        self.repository.read_cursor.execute(query)
+        metadata = self.repository.read_cursor.fetchall()
+        for i in range(len(metadata)):
+            result.metadata.append(Metadata(visit_id=metadata[i][0], attribute_name=metadata[i][1], attribute_id=metadata[i][2], identifier=metadata[i][3], identifier_name=metadata[i][4], attribute=metadata[i][5], attribute_value=metadata[i][6], date=metadata[i][7]))
+
+        ###
+        #query = f"SELECT * FROM " + QUERIES + f" WHERE website_id = {visit_id}"
+        #self.repository.read_cursor.execute(query)
+        #queries = self.repository.read_cursor.fetchall()
+        #for i in range(len(queries)):
+        #    result.queries.append(Query(website_id=queries[i][0], query=queries[i][1]))
+
+        #tags = []
+        #query = f"SELECT * FROM " + TAGS + f" WHERE website_id = {visit_id}"
+        #self.repository.read_cursor.execute(query)
+        #tags = self.repository.read_cursor.fetchall()
+        #for i in range(len(tags)):
+        #    result.tags.append(Tag(website_id=tags[i][0], query_id=tags[i][1], tag=tags[i][2], date=tags[i][3]))
+
+        #comments = []
+        #query = f"SELECT * FROM  " + COMMENTS + f" WHERE website_id = {visit_id}"
+        #self.repository.read_cursor.execute(query)
+        #comments = self.repository.read_cursor.fetchall()
+        #for i in range(len(comments)):
+        #    result.comments.append(Comment(website_id=comments[i][0], query_id=comments[i][1], comment=comments[i][2], date=comments[i][3]))
+        ###
+
+        return result
 
     def get_websites(self, page: int = 0, limit: int = 10, sort: str = "url", dir: str = "asc", only_visited: bool = False):
         query = f"SELECT v.*,GROUP_CONCAT(t.tag) AS tags FROM websites AS v LEFT JOIN tags AS t ON t.website_id = v.website_id GROUP BY  v.url ORDER BY v.{sort} {dir} LIMIT {limit} OFFSET {page * limit}"
@@ -218,9 +236,9 @@ class Manager:
         return resultObject
 
     def get_tags(self, page: int = 0, limit: int = 10, sort: str = "tag", dir: str = "asc", website_id: int = 0):
-        query = f"SELECT * FROM " + TAGS + " ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        query = f"SELECT * FROM " + TAGS + f" ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         if website_id > 0:
-            query = f"SELECT * FROM " + TAGS + " as t WHERE t.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+            query = f"SELECT * FROM " + TAGS + f" as t WHERE t.website_id = {website_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
         self.repository.read_cursor.execute(query)
         return self.repository.read_cursor.fetchall()
 
@@ -241,43 +259,43 @@ class Manager:
             "comments": [],
             "tags": []
         }
-        query = f"SELECT * FROM " + WEBSITES + " WHERE url like '%{query_str}%'"
+        query = f"SELECT * FROM " + WEBSITES + f" WHERE url like '%{query_str}%'"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         if len(result) > 0:
             resultObject["websites"] = result
 
-        query = f"SELECT v.* FROM " + VISITS + "  WHERE v.url like '%{query_str}%'"
+        query = f"SELECT v.* FROM " + VISITS + f"  WHERE v.url like '%{query_str}%'"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         if len(result) > 0:
             resultObject["visits"] = result
         
-        query = f"SELECT * FROM " + QUERIES + " WHERE query like '%{query_str}%'"
+        query = f"SELECT * FROM " + QUERIES + f" WHERE query like '%{query_str}%'"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         if len(result) > 0:
             resultObject["queries"] = result
 
-        query = f"SELECT * FROM " + MEDIA + " WHERE media_link like '%{query_str}%'"
+        query = f"SELECT * FROM " + MEDIA + f" WHERE media_link like '%{query_str}%'"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         if len(result) > 0:
             resultObject["media"] = result
         
-        query = f"SELECT * FROM comments WHERE comment like '%{query_str}%'"
+        query = f"SELECT * FROM " + COMMENTS + f" WHERE comment like '%{query_str}%'"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         if len(result) > 0:
             resultObject["comments"] = result
         
-        query = f"SELECT * FROM tags WHERE tag like '%{query_str}%'"
+        query = f"SELECT * FROM " + TAGS + f" WHERE tag like '%{query_str}%'"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         if len(result) > 0:
             resultObject["tags"] = result
 
-        query = f"SELECT * FROM links WHERE link like '%{query_str}%' OR destination like '%{query_str}%'"
+        query = f"SELECT * FROM " + LINKS + f" WHERE link like '%{query_str}%' OR destination like '%{query_str}%'"
         self.repository.read_cursor.execute(query)
         result = self.repository.read_cursor.fetchall()
         if len(result) > 0:
