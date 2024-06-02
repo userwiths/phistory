@@ -7,9 +7,11 @@ class User(BaseModel):
 
 class Media(BaseModel):
     visit_id: int
+    visit_url: Optional[str]
     media_link: Optional[str]
     alt_text: Optional[str]
     is_cached: bool
+    date: str
 
 class Metadata(BaseModel):
     visit_id: int
@@ -98,3 +100,7 @@ class TagPageResponse(BaseModel):
 class VisitsPageResponse(BaseModel):
     paging: Paging
     data: list[Visit] = []
+
+class MediaPageResponse(BaseModel):
+    paging: Paging
+    data: list[Media] = []

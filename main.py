@@ -135,3 +135,9 @@ def post_group(name:str):
     manager = Manager()
     result = manager.post_group(name)
     return result
+
+@app.get("/media")
+def read_media(page:int = 0, limit:int = 10, sort:str = "date", dir:str = "asc"):
+    manager = Manager()
+    result = manager.get_media(page, limit, sort, dir)
+    return result

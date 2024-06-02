@@ -1,0 +1,8 @@
+<td colspan="7">
+    <button data-bind="click: function() { page(0) }">First</button>
+    <button data-bind="click: function() { page(page() - 1) }">Previous</button>
+    <button disabled data-bind="text: page() + 1"></button>
+    <button data-bind="click: function() { page(page() + 1) }">Next</button>
+    <button data-bind="click: function() { page(pages() - 1) }, text: pages"></button>
+    Per-Page: <input type="number" data-bind="value: limit, valueUpdate: 'input'">
+</td>

@@ -135,6 +135,21 @@ def setup_db(cursor, connection):
             date DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(website_id) REFERENCES websites(website_id)
         )""")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS
+        schedules(
+            visit_id INTEGER,
+            run_at DATETIME,
+            resheduled BOOLEAN DEFAULT FALSE,
+            current_state TEXT,
+            FOREIGN KEY(visit_id) REFERENCES visits(visit_id)
+        )""")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS
+        upgrades(
+            upgrade_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE
+        )""")
     
     connection.commit()
 

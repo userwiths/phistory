@@ -170,11 +170,7 @@ class Manager:
         url = visit[1]
         result = Visit(visit_id=visit[0], url=url, times_visited=visit[2], last_visit=visit[3])
         
-        query = f"SELECT * FROM " + MEDIA + f" WHERE visit_id = {visit_id}"
-        self.repository.read_cursor.execute(query)
-        media = self.repository.read_cursor.fetchall()
-        for i in range(len(media)):
-            result.media.append(Media(visit_id=media[i][0], media_link=media[i][1], alt_text=media[i][2], is_cached=media[i][3], date=media[i][4]))
+        result.media = self.get_media(visit_id=visit_id)
 
         links = []
         query = f"SELECT * FROM " + LINKS + f" WHERE visit_id = {visit_id}"
@@ -303,6 +299,18 @@ class Manager:
         
         return resultObject
 
+    def get_media(self, page: int = 0, limit: int = 10, sort: str = "media_link", dir: str = "asc", visit_id: int = 0):
+        query = f"SELECT me.*,v.url as visit_url FROM " + MEDIA + " JOIN " + VISITS + " ON v.visit_id = me.visit_id " + f" ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        if visit_id > 0:
+            query = f"SELECT me.*,v.url as visit_url FROM " + MEDIA + " JOIN " + VISITS + " ON v.visit_id = me.visit_id " + f" WHERE me.visit_id = {visit_id} ORDER BY {sort} {dir} LIMIT {limit} OFFSET {page * limit}"
+        self.repository.read_cursor.execute(query)
+        medias = self.repository.read_cursor.fetchall()
+        result = []
+        for media in medias:
+            result.append(Media(visit_id=media[0], visit_url= media[5], media_link=media[1], alt_text=media[2], is_cached=media[3], date=media[4]))
+        result = MediaPageResponse(data=result, paging=Paging(page=page, limit=limit, sort=sort, dir=dir))
+        return result
+        
     def construct_dashboard(self):
         result = {
             "lifetime": {},

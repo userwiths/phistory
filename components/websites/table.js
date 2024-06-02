@@ -1,14 +1,8 @@
-define(['knockout', "jquery"], function(ko, $) {
+define(['knockout', "jquery", "pager"], function(ko, $, pager) {
     let tableViewModel = function(params) {
         let self = this;
         
         self.websites = ko.observableArray();
-        self.page = ko.observable(0);
-        self.limit = ko.observable(10);
-        self.total = ko.observable(0);
-        self.pages = ko.observable(0);
-        self.dir = ko.observable('asc');
-        self.sort = ko.observable('url');
         self.only_visited = ko.observable(false);
         self.website_id = ko.observable();
         self.update_url = ko.computed(function() {
@@ -28,36 +22,22 @@ define(['knockout', "jquery"], function(ko, $) {
 
         self.component_id = "component-wrapper";
 
-        let updateTable = function() {
+        self.updateTable = function() {
             let url = self.update_url();
             url += '?';
-            url += 'page=' + self.page();
-            url += '&limit=' + self.limit();
-            url += '&dir=' + self.dir();
-            url += '&sort=' + self.sort();
+            url += 'page=' + self.pager.page();
+            url += '&limit=' + self.pager.limit();
+            url += '&dir=' + self.pager.dir();
+            url += '&sort=' + self.pager.sort();
             $.get(url, function(data) {
                 let paging = data.paging;
-                self.websites(data.data);
-                self.total(paging.total);
-                self.pages(Math.ceil(paging.total / paging.limit));
+                self.pager.websites(data.data);
+                self.pager.total(paging.total);
+                self.pager.pages(Math.ceil(paging.total / paging.limit));
             });
         };
-        self.selectedSort = function(sort) {
-            if (self.sort() === sort) {
-                self.dir(self.dir() === 'asc' ? 'desc' : 'asc');
-            } else {
-                self.sort(sort);
-                self.dir('asc');
-            }
-            let element = $("th." + sort);
-            $("th.sortable span").remove();
-            if(self.dir() === 'asc') {
-                element.append('<span>&#x25B2;</span>');
-            } else {
-                element.append('<span>&#x25BC;</span>');
-            }
-            updateTable();
-        }
+        pager.updateTable = self.updateTable;
+        self.selectedSort = pager.selectedSort;
 
         self.getWebsiteImage = function() {
             let image = "";
@@ -147,26 +127,14 @@ define(['knockout', "jquery"], function(ko, $) {
             return tags.slice(0, -2);
         };
         
-        self.page.subscribe(function() {
-            if(self.page() < 0) {
-                self.page(0);
-            }
-            if(self.page() > self.pages()) {
-                self.page(self.pages());
-            }
-            updateTable();
-        });
-        self.limit.subscribe(function() {
-            updateTable();
-        });
         self.only_visited.subscribe(function() {
-            if(self.page() > 0) {
-                self.page(0);
+            if(self.pager.page() > 0) {
+                self.pager.page(0);
             } else {
-                updateTable();
+                self.updateTable();
             }
         });
-        updateTable();
+        self.updateTable();
 
         //Bugs the visited only.
         //ko.cleanNode(document.getElementById(self.component_id));
